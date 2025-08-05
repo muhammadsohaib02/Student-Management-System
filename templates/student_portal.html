@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <style>
+        body { background-color: #f0f4f8; font-family: Arial, sans-serif; }
+        .container { padding-top: 2rem; }
+        .card { border: none; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .btn-primary { background-color: #007bff; border: none; }
+        .btn-primary:hover { background-color: #0056b3; }
+        .alert { border-radius: 8px; }
+        .table { background-color: white; }
+        .profile-picture { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; }
+        .profile-header { display: flex; align-items: center; margin-bottom: 2rem; }
+        .profile-header h2 { margin-left: 1rem; }
+        .chart-container { max-width: 300px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand text-white" href="/student">Student Portal</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link btn btn-primary text-white mx-1" href="{{ url_for('student_marks') }}">Marks</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link btn btn-primary text-white mx-1" href="{{ url_for('student_attendance') }}">Attendance</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link btn btn-primary text-white mx-1" href="{{ url_for('enroll_subjects') }}">Enroll Subjects</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-white" href="/logout">Logout</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        {% if student %}
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="profile-header">
+                        {% if student.profile_picture and student.profile_picture != '' %}
+                            <img src="{{ url_for('static', filename='uploads/' + student.profile_picture) }}" alt="Profile Picture" class="profile-picture">
+                        {% else %}
+                            <img src="{{ url_for('static', filename='images/default_profile.png') }}" alt="Default Profile Picture" class="profile-picture">
+                        {% endif %}
+                        <h2 class="ms-3">Welcome, {{ student.name }}</h2>
+                    </div>
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h3>Profile Information</h3>
+                            <p><strong>Name:</strong> {{ student.name }}</p>
+                            <p><strong>Email:</strong> {{ student.email }}</p>
+                           <!-- <p><strong>Department:</strong> {{ student.department_name or 'Not assigned' }}</p> -->
+                            <p><strong>Phone:</strong> {{ student.phone_number or 'Not provided' }}</p>
+                            <p><strong>City:</strong> {{ student.city or 'Not provided' }}</p>
+                        </div>
+                    </div>
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h3>Enrolled Subjects</h3>
+                            {% if enrolled_subjects %}
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Subject</th>
+                                            <th>Department</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for subject in enrolled_subjects %}
+                                            <tr>
+                                                <td>{{ subject.name }}</td>
+                                                <td>{{ subject.department_name }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            {% else %}
+                                <p>No subjects enrolled. <a href="{{ url_for('enroll_subjects') }}">Enroll now</a>.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h3>Attendance Overview</h3>
+                            <div class="chart-container">
+                                <canvas id="attendanceChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h3>Marks Overview</h3>
+                            <div class="chart-container">
+                                <canvas id="marksChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <p class="text-center">Unable to load student data.</p>
+        {% endif %}
+    </div>
+    <script>
+        // Attendance Pie Chart
+        const attendanceCtx = document.getElementById('attendanceChart').getContext('2d');
+        const attendanceData = {
+            labels: ['Present', 'Absent'],
+            datasets: [{
+                data: [{{ attendance_stats.present_count or 0 }}, {{ attendance_stats.absent_count or 0 }}],
+                backgroundColor: ['#28a745', '#dc3545'],
+                hoverOffset: 20
+            }]
+        };
+        new Chart(attendanceCtx, {
+            type: 'pie',
+            data: attendanceData,
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    title: { display: true, text: 'Attendance Distribution' }
+                }
+            }
+        });
+
+        // Marks Bar Chart
+        const marksCtx = document.getElementById('marksChart').getContext('2d');
+        const marksData = {
+            labels: ['Marks Obtained', 'Marks Remaining'],
+            datasets: [{
+                data: [{{ marks_stats.total_marks_obtained or 0 }},
+                       {{ marks_stats.total_marks_possible or 0 }} - {{ marks_stats.total_marks_obtained or 0 }}],
+                backgroundColor: ['#007bff', '#e9ecef'],
+                borderColor: ['#0056b3', '#ced4da'],
+                borderWidth: 1
+            }]
+        };
+        new Chart(marksCtx, {
+            type: 'bar',
+            data: marksData,
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true, max: {{ marks_stats.total_marks_possible or 100 }} }
+                },
+                plugins: {
+                    legend: { display: false },
+                    title: { display: true, text: 'Marks Progress' }
+                }
+            }
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
