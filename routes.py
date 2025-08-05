@@ -1,10 +1,14 @@
 from flask import request, session
 
 def register_routes(app, controller):
+    @app.route('/')
+    def root():
+        return controller.handle_login(request, session)
 
     @app.route('/login', methods=['GET', 'POST'])
     def login():
         return controller.handle_login(request, session)
+
 
     @app.route('/register', methods=['GET', 'POST'])
     def register():
